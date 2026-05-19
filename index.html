@@ -474,8 +474,10 @@
         <select id="keySelect"></select>
         <span class="music-label" style="margin-left:.5rem">Mode</span>
         <select id="modeSelect"></select>
-        <span class="music-label" style="margin-left:.5rem">Oct</span>
-        <div class="oct-strip" id="octStrip"></div>
+        <div style="display:flex;align-items:center;gap:0.5rem;margin-left:.5rem">
+          <span class="music-label" style="min-width:unset">Oct</span>
+          <div class="oct-strip" id="octStrip"></div>
+        </div>
       </div>
 
       <div class="music-row">
@@ -742,7 +744,7 @@ for (const m of Object.keys(MODES)) {
 modeSelect.addEventListener('change', () => { selectedMode = modeSelect.value; refreshScale(); });
 
 // ── Octave strip ──────────────────────────────────────────────────────────────
-for (const o of [2, 3, 4, 5]) {
+for (const o of [1, 2, 3, 4, 5]) {
   const btn = document.createElement('button');
   btn.className = 'oct-btn' + (o === selectedOctave ? ' active' : '');
   btn.textContent = o;

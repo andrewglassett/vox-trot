@@ -54,7 +54,19 @@ export class VoiceSynthesizer {
   }
 
   setSpeed(val)        { this.speed = Math.max(0.2, val); }
-  setFormantShift(val) { this.formantShift = val; }
+  setFormantShift(val) {
+    this.formantShift = val;
+    if (this._f1 && this._currentBaseFmts && this.ctx) {
+      const fmts = this._shifted(this._currentBaseFmts);
+      const now  = this.ctx.currentTime;
+      this._f1.frequency.cancelAndHoldAtTime(now);
+      this._f2.frequency.cancelAndHoldAtTime(now);
+      this._f3.frequency.cancelAndHoldAtTime(now);
+      this._f1.frequency.setTargetAtTime(fmts[0], now, 0.02);
+      this._f2.frequency.setTargetAtTime(fmts[1], now, 0.02);
+      this._f3.frequency.setTargetAtTime(fmts[2], now, 0.02);
+    }
+  }
 
   setJitter(val) {
     this.jitterDepth = val;
@@ -208,6 +220,7 @@ export class VoiceSynthesizer {
     f2.type = 'peaking'; f2.frequency.value = 1500; f2.Q.value = 5.0; f2.gain.value = 14;
     const f3 = ctx.createBiquadFilter();
     f3.type = 'peaking'; f3.frequency.value = 2500; f3.Q.value = 7.0; f3.gain.value = 10;
+    this._f1 = f1; this._f2 = f2; this._f3 = f3;
 
     // High-shelf — tone parameter shifts this from dark (-22 dB) to bright (+4 dB)
     const shelf = ctx.createBiquadFilter();
@@ -281,13 +294,19 @@ export class VoiceSynthesizer {
       if (ph === '_PAUSE') {
         t       += 0.14 / this.speed;
         elapsed += 0.14 / this.speed;
-        if (pitchSeq) pitchIdx++; // advance past the null slot
+        if (pitchSeq) pitchIdx++;
+        const pauseWait = Math.max(0, (t - ctx.currentTime - 0.05) * 1000);
+        if (pauseWait > 5) {
+          await new Promise(resolve => { this._stopResolve = resolve; setTimeout(resolve, pauseWait); });
+          if (this.stopFlag) break;
+        }
         continue;
       }
 
       const base = FORMANTS[ph];
       if (!base) continue;
 
+      this._currentBaseFmts = base;
       const dur    = (DURATIONS[ph] ?? 0.12) / this.speed;
       const fmts   = this._shifted(base);
       const voiced = VOICED[ph] ?? true;
@@ -390,6 +409,13 @@ export class VoiceSynthesizer {
 
       t       += dur;
       elapsed += dur;
+
+      // Await until ~50ms before this phoneme ends so next phoneme re-reads live params
+      const waitMs = Math.max(0, (t - ctx.currentTime - 0.05) * 1000);
+      if (waitMs > 5) {
+        await new Promise(resolve => { this._stopResolve = resolve; setTimeout(resolve, waitMs); });
+        if (this.stopFlag) break;
+      }
     }
 
     // Final fade
@@ -420,6 +446,10 @@ export class VoiceSynthesizer {
     this._vibratoNode     = null;
     this._vibratoAmtNode  = null;
     this._breathGainNode  = null;
+    this._f1              = null;
+    this._f2              = null;
+    this._f3              = null;
+    this._currentBaseFmts = null;
     this._stopResolve     = null;
     if (this.onDone) this.onDone();
   }
