@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vox Trot</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d0d0f;
+    --surface: #16161a;
+    --surface2: #1c1c24;
+    --border: #2a2a35;
+    --accent: #7c6af7;
+    --accent2: #3ecfcf;
+    --accent3: #f7a26a;
+    --text: #e8e8f0;
+    --muted: #666680;
+    --glow: rgba(124, 106, 247, 0.25);
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 2rem;
+    gap: 2rem;
+  }
+
+  h1 {
+    font-size: 0.85rem;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* Outer card: two-column grid */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.75rem 2rem;
+    width: 100%;
+    max-width: 1100px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.75rem 2rem;
+    align-items: start;
+  }
+
+  /* Each column stacks its children vertically */
+  .col {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    min-width: 0; /* prevent grid blowout */
+  }
+
+  /* Divider between columns */
+  .col-left {
+    border-right: 1px solid var(--border);
+    padding-right: 2rem;
+  }
+
+  /* ── Shared toggle strip ── */
+  .toggle-strip {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    width: fit-content;
+  }
+  .ts-btn {
+    flex: none;
+    padding: 0.4rem 0.9rem;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+  }
+  .ts-btn.active        { background: var(--accent); color: #fff; }
+  .ts-btn.active-green  { background: var(--accent2); color: #0d0d0f; }
+  .ts-btn:not(.active):not(.active-green):hover {
+    background: rgba(124,106,247,0.12);
+    color: var(--text);
+  }
+
+  /* ── Voice selector ── */
+  .voice-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+  }
+  .voice-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.55rem 0.75rem;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+  .voice-card:hover { border-color: var(--accent); background: rgba(124,106,247,0.07); }
+  .voice-card.active {
+    border-color: var(--accent);
+    background: rgba(124,106,247,0.14);
+  }
+  .voice-card-name {
+    font-size: 0.88rem;
+    color: var(--text);
+    letter-spacing: 0.04em;
+  }
+  .voice-card.active .voice-card-name { color: var(--accent2); }
+  .voice-card-desc {
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* ── Textarea ── */
+  textarea {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 1.1rem;
+    line-height: 1.6;
+    padding: 0.85rem 1rem;
+    resize: vertical;
+    min-height: 80px;
+    width: 100%;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  textarea:focus        { border-color: var(--accent); }
+  textarea::placeholder { color: var(--muted); }
+  textarea.ipa-mode     { font-size: 1.25rem; letter-spacing: 0.05em; }
+
+  /* ── IPA picker ── */
+  .ipa-picker {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    display: none;
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+  .ipa-picker.visible { display: flex; }
+
+  .ipa-group-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.1rem;
+  }
+
+  .ipa-symbols { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+
+  .ipa-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 1.1rem;
+    padding: 0.25rem 0.55rem;
+    cursor: pointer;
+    position: relative;
+    transition: background 0.12s, border-color 0.12s;
+    flex: none;
+  }
+  .ipa-btn:hover { background: rgba(124,106,247,0.18); border-color: var(--accent); }
+  .ipa-btn:active { background: var(--accent); }
+  .ipa-btn::after {
+    content: attr(data-hint);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1e1e2a;
+    border: 1px solid var(--border);
+    color: var(--accent2);
+    font-size: 0.65rem;
+    white-space: nowrap;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.1s;
+    z-index: 10;
+  }
+  .ipa-btn:hover::after { opacity: 1; }
+
+  /* ── Voice controls ── */
+  .controls {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+  .control-group { display: flex; flex-direction: column; gap: 0.5rem; }
+  .control-group label {
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+  }
+  .control-group label span { color: var(--accent2); font-variant-numeric: tabular-nums; }
+  .control-group.dimmed { opacity: 0.35; pointer-events: none; }
+
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 4px; border-radius: 2px;
+    background: var(--border); outline: none; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--glow);
+    cursor: pointer; transition: background 0.15s;
+  }
+  input[type=range]::-webkit-slider-thumb:hover { background: var(--accent2); }
+
+  /* ── Music panel ── */
+  .music-panel {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.1rem;
+    display: none;
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+  .music-panel.visible { display: flex; }
+
+  .music-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .music-label {
+    font-size: 0.65rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    min-width: 3.5rem;
+  }
+
+  /* Key / mode selects */
+  select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.82rem;
+    padding: 0.35rem 0.6rem;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.15s;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  select:focus { border-color: var(--accent); }
+
+  /* Pattern buttons */
+  .pattern-strip {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .pat-btn {
+    flex: none;
+    padding: 0.38rem 0.7rem;
+    background: transparent;
+    border: none;
+    border-right: 1px solid var(--border);
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+    white-space: nowrap;
+  }
+  .pat-btn:last-child { border-right: none; }
+  .pat-btn.active     { background: var(--accent3); color: #0d0d0f; }
+  .pat-btn:not(.active):hover { background: rgba(247,162,106,0.12); color: var(--text); }
+
+  /* Scale note pills */
+  .scale-display {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    align-items: center;
+  }
+  .scale-note {
+    font-size: 0.68rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    opacity: 0.25;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.1s;
+  }
+  .scale-note.selected {
+    color: var(--text);
+    border-color: var(--accent2);
+    opacity: 1;
+  }
+  .scale-note.lit {
+    background: var(--accent3);
+    border-color: var(--accent3);
+    color: #0d0d0f;
+    opacity: 1;
+    box-shadow: 0 0 6px rgba(247,162,106,0.4);
+  }
+
+  /* Octave select */
+  .oct-strip {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .oct-btn {
+    width: 2rem;
+    padding: 0.38rem 0;
+    background: transparent;
+    border: none;
+    border-right: 1px solid var(--border);
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 0.8rem;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .oct-btn:last-child { border-right: none; }
+  .oct-btn.active  { background: var(--accent); color: #fff; }
+  .oct-btn:not(.active):hover { background: rgba(124,106,247,0.12); color: var(--text); }
+
+  /* ── Speak / Stop ── */
+  .btn-row { display: flex; gap: 0.75rem; }
+  button.action {
+    flex: 1; padding: 0.75rem 1.25rem;
+    border-radius: 8px; border: 1px solid var(--border);
+    background: transparent; color: var(--text);
+    font-family: inherit; font-size: 0.85rem;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    cursor: pointer; transition: background 0.15s, border-color 0.15s;
+  }
+  button.action.primary  { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.action.primary:hover { background: var(--accent2); border-color: var(--accent2); }
+  button.action.primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.action.secondary:hover { border-color: var(--accent); background: rgba(124,106,247,0.1); }
+
+  /* ── Phoneme display ── */
+  .phoneme-display {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 0.75rem 1rem;
+    min-height: 48px; display: flex; flex-wrap: wrap;
+    gap: 0.35rem; align-items: center;
+  }
+  .ph-token {
+    font-size: 0.78rem; padding: 0.2rem 0.45rem;
+    border-radius: 4px; border: 1px solid var(--border);
+    color: var(--muted); transition: all 0.08s;
+  }
+  .ph-token.active {
+    background: var(--accent); border-color: var(--accent);
+    color: #fff; box-shadow: 0 0 10px var(--glow);
+  }
+  .ph-token.done { color: var(--accent2); border-color: transparent; }
+
+  /* ── Oscilloscope ── */
+  canvas {
+    width: 100%; height: 80px; border-radius: 8px;
+    background: var(--bg); border: 1px solid var(--border); display: block;
+  }
+
+  .status {
+    font-size: 0.72rem; color: var(--muted);
+    letter-spacing: 0.1em; text-transform: uppercase; text-align: center;
+  }
+  .status.active { color: var(--accent2); }
+</style>
+</head>
+<body>
+
+<h1>Vox Trot</h1>
+
+<div class="card">
+
+  <!-- ── Left column: voice model + controls + music ── -->
+  <div class="col col-left">
+
+    <!-- Voice selector -->
+    <div class="voice-grid" id="voiceGrid"></div>
+
+    <!-- Voice controls -->
+    <div class="controls">
+      <div class="control-group" id="pitchGroup">
+        <label>Pitch (F0) <span id="pitchVal">120 Hz</span></label>
+        <input type="range" id="pitchSlider" min="60" max="400" step="1" value="120">
+      </div>
+      <div class="control-group">
+        <label>Volume <span id="gainVal">70%</span></label>
+        <input type="range" id="gainSlider" min="0" max="100" step="1" value="70">
+      </div>
+      <div class="control-group">
+        <label>Speed <span id="speedVal">1.0×</span></label>
+        <input type="range" id="speedSlider" min="0.4" max="2.5" step="0.05" value="1.0">
+      </div>
+      <div class="control-group">
+        <label>Formant Shift <span id="shiftVal">0%</span></label>
+        <input type="range" id="shiftSlider" min="-50" max="80" step="1" value="0">
+      </div>
+      <div class="control-group">
+        <label>Jitter <span id="jitterVal">7%</span></label>
+        <input type="range" id="jitterSlider" min="0" max="100" step="1" value="7">
+      </div>
+      <div class="control-group">
+        <label>Breathiness <span id="breathVal">6%</span></label>
+        <input type="range" id="breathSlider" min="0" max="100" step="1" value="6">
+      </div>
+      <div class="control-group">
+        <label>Vibrato <span id="vibratoVal">0%</span></label>
+        <input type="range" id="vibratoSlider" min="0" max="100" step="1" value="0">
+      </div>
+      <div class="control-group">
+        <label>Tone <span id="toneVal">0</span></label>
+        <input type="range" id="toneSlider" min="-100" max="100" step="1" value="0">
+      </div>
+    </div>
+
+    <!-- Music panel toggle -->
+    <div class="toggle-strip">
+      <button class="ts-btn active-green" id="musicToggle">♩ Scale / Mode</button>
+    </div>
+
+    <!-- Music panel -->
+    <div class="music-panel visible" id="musicPanel">
+
+      <div class="music-row">
+        <span class="music-label">Key</span>
+        <select id="keySelect"></select>
+        <span class="music-label" style="margin-left:.5rem">Mode</span>
+        <select id="modeSelect"></select>
+        <span class="music-label" style="margin-left:.5rem">Oct</span>
+        <div class="oct-strip" id="octStrip"></div>
+      </div>
+
+      <div class="music-row">
+        <span class="music-label">Pattern</span>
+        <div class="pattern-strip" id="patternStrip"></div>
+      </div>
+
+      <div class="music-row" style="align-items:flex-start">
+        <div style="display:flex;flex-direction:column;gap:0.35rem;min-width:5.5rem">
+          <span class="music-label">Select Notes</span>
+          <div style="display:flex;gap:0.3rem">
+            <button class="ts-btn" id="selectAll"  style="padding:0.2rem 0.5rem;font-size:0.62rem">All</button>
+            <button class="ts-btn" id="selectNone" style="padding:0.2rem 0.5rem;font-size:0.62rem">None</button>
+          </div>
+        </div>
+        <div class="scale-display" id="scaleDisplay"></div>
+      </div>
+
+    </div>
+
+  </div><!-- /col-left -->
+
+  <!-- ── Right column: input + output ── -->
+  <div class="col">
+
+    <!-- Input mode toggle -->
+    <div class="toggle-strip" id="inputModeStrip">
+      <button class="ts-btn active" data-mode="text">Text</button>
+      <button class="ts-btn"        data-mode="ipa">IPA</button>
+    </div>
+
+    <!-- Textarea -->
+    <textarea id="textInput" placeholder="Type something to synthesize…">Hello world</textarea>
+
+    <!-- IPA picker -->
+    <div class="ipa-picker" id="ipaPicker"></div>
+
+    <!-- Speak / Stop -->
+    <div class="btn-row">
+      <button class="action primary"   id="speakBtn">Speak</button>
+      <button class="action secondary" id="stopBtn">Stop</button>
+    </div>
+
+    <!-- Phoneme strip -->
+    <div class="phoneme-display" id="phonemeDisplay">
+      <span class="ph-token" style="border:none;color:var(--muted);font-size:.72rem">phonemes will appear here</span>
+    </div>
+
+    <canvas id="scope" width="600" height="80"></canvas>
+
+    <div class="status" id="status">Ready</div>
+
+  </div><!-- /col -->
+
+</div>
+
+<script type="module">
+import { VoiceSynthesizer }                          from './synthesizer.js';
+import { textToPhonemes, ipaToPhonemes, IPA_GROUPS } from './phonemes.js';
+import { NOTES, MODES, PATTERNS, buildScale, ScaleTraverser, buildPitchSequence } from './music.js';
+import { VOICES }                                    from './voices.js';
+
+const synth = new VoiceSynthesizer();
+
+// ── DOM ───────────────────────────────────────────────────────────────────────
+const textInput      = document.getElementById('textInput');
+const speakBtn       = document.getElementById('speakBtn');
+const stopBtn        = document.getElementById('stopBtn');
+const pitchSlider    = document.getElementById('pitchSlider');
+const gainSlider     = document.getElementById('gainSlider');
+const speedSlider    = document.getElementById('speedSlider');
+const shiftSlider    = document.getElementById('shiftSlider');
+const pitchVal       = document.getElementById('pitchVal');
+const gainVal        = document.getElementById('gainVal');
+const speedVal       = document.getElementById('speedVal');
+const shiftVal       = document.getElementById('shiftVal');
+const jitterSlider   = document.getElementById('jitterSlider');
+const breathSlider   = document.getElementById('breathSlider');
+const vibratoSlider  = document.getElementById('vibratoSlider');
+const toneSlider     = document.getElementById('toneSlider');
+const jitterVal      = document.getElementById('jitterVal');
+const breathVal      = document.getElementById('breathVal');
+const vibratoVal     = document.getElementById('vibratoVal');
+const toneVal        = document.getElementById('toneVal');
+const pitchGroup     = document.getElementById('pitchGroup');
+const status         = document.getElementById('status');
+const phonemeDisp    = document.getElementById('phonemeDisplay');
+const canvas         = document.getElementById('scope');
+const canvasCtx      = canvas.getContext('2d');
+const inputModeStrip = document.getElementById('inputModeStrip');
+const ipaPicker      = document.getElementById('ipaPicker');
+const musicToggle    = document.getElementById('musicToggle');
+const musicPanel     = document.getElementById('musicPanel');
+const keySelect      = document.getElementById('keySelect');
+const modeSelect     = document.getElementById('modeSelect');
+const octStrip       = document.getElementById('octStrip');
+const patternStrip   = document.getElementById('patternStrip');
+const scaleDisplay   = document.getElementById('scaleDisplay');
+const selectAllBtn   = document.getElementById('selectAll');
+const selectNoneBtn  = document.getElementById('selectNone');
+const voiceGrid      = document.getElementById('voiceGrid');
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let inputMode   = 'text';   // 'text' | 'ipa'
+let musicOn     = true;
+let scaleNotes  = [];       // full Hz array (all notes in range)
+let scaleNoteNames = [];    // display names
+
+// Music settings
+let selectedKey     = 'C';
+let selectedMode    = 'Ionian';
+let selectedOctave  = 3;
+let selectedPattern = 'Up';
+let selectedNoteIndices = new Set(); // indices into scaleNotes that are active
+
+// ── Voice selector ────────────────────────────────────────────────────────────
+function applyVoice(preset, card) {
+  synth.setVoice(preset);
+
+  // Sync all sliders to voice values
+  pitchSlider.value    = preset.pitch;
+  pitchVal.textContent = preset.pitch + ' Hz';
+
+  const shiftPct = Math.round(preset.formantShift * 100);
+  shiftSlider.value    = shiftPct;
+  shiftVal.textContent = (shiftPct >= 0 ? '+' : '') + shiftPct + '%';
+
+  const jPct = Math.round(preset.jitterDepth * 1000);
+  jitterSlider.value   = jPct;
+  jitterVal.textContent = jPct + '%';
+
+  const bPct = Math.round(preset.breathiness / 0.4 * 100);
+  breathSlider.value   = bPct;
+  breathVal.textContent = bPct + '%';
+
+  const vPct = Math.round(preset.vibrato * 100);
+  vibratoSlider.value   = vPct;
+  vibratoVal.textContent = vPct + '%';
+
+  const tV = Math.round((preset.tone ?? 0) * 100);
+  toneSlider.value   = tV;
+  toneVal.textContent = (tV >= 0 ? '+' : '') + tV;
+
+  voiceGrid.querySelectorAll('.voice-card').forEach(c => c.classList.remove('active'));
+  card.classList.add('active');
+}
+
+for (const preset of VOICES) {
+  const card = document.createElement('div');
+  card.className = 'voice-card' + (preset.id === 'reed' ? ' active' : '');
+  card.innerHTML = `<span class="voice-card-name">${preset.name}</span>
+                    <span class="voice-card-desc">${preset.desc}</span>`;
+  card.addEventListener('click', () => applyVoice(preset, card));
+  voiceGrid.appendChild(card);
+}
+
+// ── Input mode toggle ──────────────────────────────────────────────────────────
+inputModeStrip.addEventListener('click', e => {
+  const btn = e.target.closest('.ts-btn');
+  if (!btn) return;
+  inputMode = btn.dataset.mode;
+  inputModeStrip.querySelectorAll('.ts-btn').forEach(b => b.classList.toggle('active', b === btn));
+  textInput.classList.toggle('ipa-mode', inputMode === 'ipa');
+  ipaPicker.classList.toggle('visible',  inputMode === 'ipa');
+  if (inputMode === 'text') {
+    textInput.placeholder = 'Type something to synthesize…';
+  } else {
+    textInput.placeholder = 'Type or click IPA symbols…';
+    textInput.value = '';
+    textInput.focus();
+  }
+});
+
+// ── Build IPA picker ──────────────────────────────────────────────────────────
+for (const group of IPA_GROUPS) {
+  const label = document.createElement('div');
+  label.className = 'ipa-group-label';
+  label.textContent = group.label;
+  ipaPicker.appendChild(label);
+  const row = document.createElement('div');
+  row.className = 'ipa-symbols';
+  for (const { sym, hint } of group.symbols) {
+    const btn = document.createElement('button');
+    btn.className = 'ipa-btn';
+    btn.textContent = sym;
+    btn.dataset.hint = hint;
+    btn.addEventListener('click', () => {
+      const s = textInput.selectionStart, e2 = textInput.selectionEnd;
+      textInput.value = textInput.value.slice(0, s) + sym + textInput.value.slice(e2);
+      textInput.setSelectionRange(s + sym.length, s + sym.length);
+      textInput.focus();
+    });
+    row.appendChild(btn);
+  }
+  ipaPicker.appendChild(row);
+}
+
+// ── Sliders ───────────────────────────────────────────────────────────────────
+pitchSlider.addEventListener('input', () => {
+  const hz = parseInt(pitchSlider.value);
+  pitchVal.textContent = hz + ' Hz';
+  synth.setPitch(hz);
+});
+gainSlider.addEventListener('input', () => {
+  const pct = parseInt(gainSlider.value);
+  gainVal.textContent = pct + '%';
+  synth.setGain(pct / 100);
+});
+speedSlider.addEventListener('input', () => {
+  const s = parseFloat(speedSlider.value).toFixed(2);
+  speedVal.textContent = s + '×';
+  synth.setSpeed(parseFloat(s));
+});
+shiftSlider.addEventListener('input', () => {
+  const pct = parseInt(shiftSlider.value);
+  shiftVal.textContent = (pct >= 0 ? '+' : '') + pct + '%';
+  synth.setFormantShift(pct / 100);
+});
+jitterSlider.addEventListener('input', () => {
+  const v = parseInt(jitterSlider.value);
+  jitterVal.textContent = v + '%';
+  synth.setJitter(v / 1000); // 0–100 → 0–0.1 fraction
+});
+breathSlider.addEventListener('input', () => {
+  const v = parseInt(breathSlider.value);
+  breathVal.textContent = v + '%';
+  synth.setBreathiness(v / 100 * 0.4); // 0–100 → 0–0.4
+});
+vibratoSlider.addEventListener('input', () => {
+  const v = parseInt(vibratoSlider.value);
+  vibratoVal.textContent = v + '%';
+  synth.setVibrato(v / 100);
+});
+toneSlider.addEventListener('input', () => {
+  const v = parseInt(toneSlider.value);
+  toneVal.textContent = (v >= 0 ? '+' : '') + v;
+  synth.setTone(v / 100);
+});
+
+// ── Music panel toggle ────────────────────────────────────────────────────────
+musicToggle.addEventListener('click', () => {
+  musicOn = !musicOn;
+  musicPanel.classList.toggle('visible', musicOn);
+  musicToggle.classList.toggle('active-green', musicOn);
+  musicToggle.classList.toggle('active', !musicOn);
+  // Pitch slider only meaningful when music off
+  pitchGroup.classList.toggle('dimmed', musicOn);
+});
+
+// ── Key select ────────────────────────────────────────────────────────────────
+for (const n of NOTES) {
+  const opt = document.createElement('option');
+  opt.value = opt.textContent = n;
+  keySelect.appendChild(opt);
+}
+keySelect.addEventListener('change', () => { selectedKey = keySelect.value; refreshScale(); });
+
+// ── Mode select ───────────────────────────────────────────────────────────────
+for (const m of Object.keys(MODES)) {
+  const opt = document.createElement('option');
+  opt.value = opt.textContent = m;
+  modeSelect.appendChild(opt);
+}
+modeSelect.addEventListener('change', () => { selectedMode = modeSelect.value; refreshScale(); });
+
+// ── Octave strip ──────────────────────────────────────────────────────────────
+for (const o of [2, 3, 4, 5]) {
+  const btn = document.createElement('button');
+  btn.className = 'oct-btn' + (o === selectedOctave ? ' active' : '');
+  btn.textContent = o;
+  btn.addEventListener('click', () => {
+    selectedOctave = o;
+    octStrip.querySelectorAll('.oct-btn').forEach(b => b.classList.toggle('active', b === btn));
+    refreshScale();
+  });
+  octStrip.appendChild(btn);
+}
+
+// ── Pattern strip ─────────────────────────────────────────────────────────────
+const PATTERN_ICONS = { 'Up': '↑', 'Down': '↓', 'Up / Down': '↕', 'Random': '⚄' };
+for (const p of PATTERNS) {
+  const btn = document.createElement('button');
+  btn.className = 'pat-btn' + (p === selectedPattern ? ' active' : '');
+  btn.textContent = PATTERN_ICONS[p] + '  ' + p;
+  btn.dataset.pattern = p;
+  btn.addEventListener('click', () => {
+    selectedPattern = p;
+    patternStrip.querySelectorAll('.pat-btn').forEach(b => b.classList.toggle('active', b === btn));
+  });
+  patternStrip.appendChild(btn);
+}
+
+// ── All / None buttons ────────────────────────────────────────────────────────
+selectAllBtn.addEventListener('click', () => {
+  selectedNoteIndices = new Set(scaleNotes.map((_, i) => i));
+  updateScalePills();
+});
+selectNoneBtn.addEventListener('click', () => {
+  selectedNoteIndices = new Set();
+  updateScalePills();
+});
+
+// ── Scale display ─────────────────────────────────────────────────────────────
+function refreshScale() {
+  scaleNotes = buildScale(selectedKey, selectedMode, selectedOctave, 2);
+  const intervals = MODES[selectedMode];
+  const rootIdx   = NOTES.indexOf(selectedKey);
+  scaleNoteNames  = [];
+  for (let oct = 0; oct < 2; oct++) {
+    for (const iv of intervals) {
+      scaleNoteNames.push(NOTES[(rootIdx + iv) % 12] + (selectedOctave + oct));
+    }
+  }
+  scaleNoteNames.push(selectedKey + (selectedOctave + 2));
+
+  // Preserve selections by name across key/mode changes
+  const prevNames = [...selectedNoteIndices].map(i => scaleNoteNames[i]);
+  if (selectedNoteIndices.size === 0 || selectedNoteIndices.size === scaleNoteNames.length) {
+    // All or none — keep that state at new scale length
+    selectedNoteIndices = selectedNoteIndices.size === 0
+      ? new Set()
+      : new Set(scaleNotes.map((_, i) => i));
+  } else {
+    // Re-select by matching note names where possible
+    selectedNoteIndices = new Set(
+      scaleNoteNames.map((name, i) => prevNames.includes(name) ? i : -1).filter(i => i >= 0)
+    );
+    // If nothing matched, default to all
+    if (selectedNoteIndices.size === 0) {
+      selectedNoteIndices = new Set(scaleNotes.map((_, i) => i));
+    }
+  }
+
+  updateScalePills();
+}
+
+function updateScalePills() {
+  scaleDisplay.innerHTML = '';
+  for (let i = 0; i < scaleNoteNames.length; i++) {
+    const pill = document.createElement('span');
+    pill.className = 'scale-note' + (selectedNoteIndices.has(i) ? ' selected' : '');
+    pill.textContent = scaleNoteNames[i];
+    pill.addEventListener('click', () => {
+      if (selectedNoteIndices.has(i)) selectedNoteIndices.delete(i);
+      else                            selectedNoteIndices.add(i);
+      pill.classList.toggle('selected', selectedNoteIndices.has(i));
+    });
+    scaleDisplay.appendChild(pill);
+  }
+}
+
+refreshScale();
+// Default: all selected
+selectedNoteIndices = new Set(scaleNotes.map((_, i) => i));
+updateScalePills();
+
+// ── Lit scale note during playback ───────────────────────────────────────────
+let scaleIdx = -1;
+function litScaleNote(hz) {
+  const pills   = [...scaleDisplay.querySelectorAll('.scale-note')];
+  const active  = [...selectedNoteIndices].sort((a, b) => a - b);
+  if (!active.length) return;
+  const closest = active.reduce((best, idx) =>
+    Math.abs(scaleNotes[idx] - hz) < Math.abs(scaleNotes[best] - hz) ? idx : best, active[0]);
+  pills.forEach((p, i) => p.classList.toggle('lit', i === closest));
+}
+
+// ── Phoneme display ───────────────────────────────────────────────────────────
+let phonemeTokens = [];
+let phonemeIndex  = 0;
+
+function getPhonemes(text) {
+  return inputMode === 'ipa' ? ipaToPhonemes(text) : textToPhonemes(text);
+}
+
+function buildPhonemeDisplay(phonemes) {
+  const phs = phonemes.filter(p => p !== '_PAUSE');
+  phonemeDisp.innerHTML = '';
+  phonemeTokens = [];
+  phonemeIndex  = 0;
+  if (!phs.length) {
+    phonemeDisp.innerHTML = '<span class="ph-token" style="border:none;color:var(--muted);font-size:.72rem">nothing to display</span>';
+    return;
+  }
+  phs.forEach(ph => {
+    const el = document.createElement('span');
+    el.className = 'ph-token';
+    el.textContent = ph;
+    phonemeDisp.appendChild(el);
+    phonemeTokens.push(el);
+  });
+}
+
+synth.onPhoneme = (ph) => {
+  if (phonemeTokens[phonemeIndex - 1]) {
+    phonemeTokens[phonemeIndex - 1].classList.remove('active');
+    phonemeTokens[phonemeIndex - 1].classList.add('done');
+  }
+  const el = phonemeTokens[phonemeIndex];
+  if (el) el.classList.add('active');
+  phonemeIndex++;
+};
+
+synth.onDone = () => {
+  phonemeTokens.forEach(el => { el.classList.remove('active'); el.classList.add('done'); });
+  scaleDisplay.querySelectorAll('.scale-note').forEach(p => p.classList.remove('lit'));
+  speakBtn.disabled = false;
+  status.textContent = 'Done';
+  status.className = 'status';
+};
+
+// ── Speak ─────────────────────────────────────────────────────────────────────
+function doSpeak() {
+  const text = textInput.value.trim();
+  if (!text) return;
+
+  const phonemes = getPhonemes(text);
+  buildPhonemeDisplay(phonemes);
+
+  let opts = {};
+  if (musicOn) {
+    const sortedIdx   = [...selectedNoteIndices].sort((a, b) => a - b);
+    const activeScale = sortedIdx.length > 0
+      ? sortedIdx.map(i => scaleNotes[i])
+      : scaleNotes; // fallback: all notes if none selected
+    const traverser = new ScaleTraverser(activeScale, selectedPattern);
+    const pitchSeq  = buildPitchSequence(phonemes, traverser);
+    opts.pitchSeq   = pitchSeq;
+
+    // Schedule scale-note lighting in sync with audio
+    // We piggyback on onPhoneme — track pitch index separately
+    let pIdx = 0;
+    const nonPause = phonemes.filter(p => p !== '_PAUSE');
+    const origOnPhoneme = synth.onPhoneme;
+    synth.onPhoneme = (ph) => {
+      origOnPhoneme(ph);
+      const hz = pitchSeq[pIdx++];
+      if (hz && musicOn) litScaleNote(hz);
+    };
+  }
+
+  speakBtn.disabled = true;
+  status.textContent = 'Speaking…';
+  status.className   = 'status active';
+  synth.speakPhonemes(phonemes, opts);
+}
+
+speakBtn.addEventListener('click', doSpeak);
+stopBtn.addEventListener('click', () => {
+  synth.stop();
+  speakBtn.disabled = false;
+  status.textContent = 'Stopped';
+  status.className   = 'status';
+  scaleDisplay.querySelectorAll('.scale-note').forEach(p => p.classList.remove('lit'));
+});
+
+textInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSpeak(); }
+});
+
+// ── Oscilloscope ──────────────────────────────────────────────────────────────
+function drawScope() {
+  requestAnimationFrame(drawScope);
+  const W = canvas.width, H = canvas.height;
+  canvasCtx.clearRect(0, 0, W, H);
+  if (!synth.analyser) {
+    canvasCtx.strokeStyle = '#2a2a35';
+    canvasCtx.lineWidth   = 1.5;
+    canvasCtx.beginPath();
+    canvasCtx.moveTo(0, H / 2);
+    canvasCtx.lineTo(W, H / 2);
+    canvasCtx.stroke();
+    return;
+  }
+  const data = new Float32Array(synth.analyser.fftSize);
+  synth.analyser.getFloatTimeDomainData(data);
+  canvasCtx.strokeStyle = '#7c6af7';
+  canvasCtx.lineWidth   = 1.5;
+  canvasCtx.beginPath();
+  const sw = W / data.length;
+  for (let i = 0; i < data.length; i++) {
+    const y = (0.5 - data[i] * 0.45) * H;
+    i === 0 ? canvasCtx.moveTo(0, y) : canvasCtx.lineTo(i * sw, y);
+  }
+  canvasCtx.stroke();
+}
+drawScope();
+</script>
+</body>
+</html>
